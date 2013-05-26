@@ -2,6 +2,7 @@
 # create a tdidf cooefficient for each row in the lyrics database
 
 import sqlite3
+import sys
 
 class TDIDFCounter(object):
     def __init__(self, dbh):
@@ -37,4 +38,9 @@ def main(input_db="mxm_dataset.db", output_db="mxm_tdidf.db"):
 
 
 if __name__ == "__main__":
-    main()
+    #main()
+    db = sqlite3.connect("/home/masen/mxm/rd/mxm_dataset.db")
+    tdc = TDIDFCounter(db)
+    tdc._init_totals_for_words()
+    print(tdc.words)
+
