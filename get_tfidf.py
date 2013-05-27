@@ -1,7 +1,13 @@
 # get_tfidf.py
 # create a tfidf cooefficient for each row in the lyrics database
 
-from IPython.core.debugger import Tracer; trace = Tracer()
+trace = None
+try:
+    from IPython.core.debugger import Tracer; trace = Tracer()
+except ImportError:
+    def disabled(): dbg("Tracepoint disabled -- IPython not found")
+    trace = disabled
+
 from math import log
 import sqlite3
 import sys
@@ -44,7 +50,7 @@ class TFIDFCounter(object):
 def init_output_db(dbh):
     # create the tfidf table
     c = dbh.cursor()
-    c.execute("DROP TABLE tfidf")
+    c.execute("DROP TABLE IF EXISTS tfidf")
     c.execute('''CREATE TABLE tfidf
               (track_id text,
                word text,
@@ -62,6 +68,7 @@ def main(input_db="mxm_dataset.db", output_db="mxm_tfidf.db"):
     init_output_db(out) 
     tdc = TFIDFCounter(mxm)
 
+    trace()
     # calculate the tfidf for all documents
     dbg("Begin calculating TFIDF...")
     compl = 0
