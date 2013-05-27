@@ -1,9 +1,9 @@
 # get_tfidf.py
 # create a tfidf cooefficient for each row in the lyrics database
 
-import sqlite3
 from IPython.core.debugger import Tracer; trace = Tracer()
 from math import log
+import sqlite3
 import sys
 
 class TFIDFCounter(object):
@@ -44,16 +44,18 @@ class TFIDFCounter(object):
 def init_output_db(dbh):
     # create the tfidf table
     c = dbh.cursor()
+    c.execute("DROP TABLE tfidf")
     c.execute('''CREATE TABLE tfidf
               (track_id text,
                word text,
                tfidf real)''')
     dbh.commit()
 
-
 def main(input_db="mxm_dataset.db", output_db="mxm_tfidf.db"):
     # load the databases
+    dbg("Connecting to musixmatch database: {}".format(input_db))
     mxm = sqlite3.connect(input_db)
+    dbg("Connecting to output database: {}".format(output_db))
     out = sqlite3.connect(output_db)
 
     dbg("Creating output tables in {}".format(output_db))
@@ -81,4 +83,7 @@ def dbg(message):
     sys.stderr.write(message + "\n")
 
 if __name__ == "__main__":
-    main(input_db="minidb.db")
+    if len(sys.argv) > 1:
+        main(input_db=sys.argv[1])
+    elif len(sys.argv) > 2:
+        main(input_db=sys.argv[1], output_db=sys.argv[2])
