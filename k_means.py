@@ -90,7 +90,7 @@ def init():
     # find some random centroids
     for t_id in c.execute("SELECT DISTINCT(track_id) FROM tfidf ORDER BY RANDOM() LIMIT {}".format(num_means)): 
         centroids.append(get_vectory(t_id[0]))
-        update_progress(len(centroids),total_docs) 
+        update_progress(len(centroids),num_means) 
 
 def main():
     npass = 0
