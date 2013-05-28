@@ -23,6 +23,13 @@ modpct = 1
 
 centroids = [ ]
 
+def bow_av_merge (src, dest, cursz):
+    for key,val in src.iteritems():
+        if key not in dest:
+            dest[key] = val
+        else:
+            dest[key] = ((dest[key] * cursz) + val) / (cursz + 1)
+
 def bow_dotproduct (t1, t2):
     common_keys = set(t1.keys()).intersection(t2)
     return reduce(lambda dp, key: dp + t1[key]*t2[key], common_keys, 0)
@@ -93,6 +100,7 @@ def init():
         update_progress(len(centroids),num_means) 
 
 def main():
+    global centroids
     npass = 0
     clusters = None
     cluster_counts = [0] * num_means
@@ -108,11 +116,13 @@ def main():
 
     # keep going until we converge
     while tuple(cluster_counts) != old_cluster_counts:
+        print("{} != {}\n\n".format(cluster_counts, old_cluster_counts))
         update_progress(0,total_docs)
         nprocs = 0
         old_cluster_counts  = tuple(cluster_counts)
         cluster_counts = [0] * num_means
         clusters = [[] for x in xrange(0,num_means)]
+        new_centroids = [{} for x in xrange(0,num_means)]
 
         # for each track, find nearest cluster
         for row in all_tracks:
@@ -123,11 +133,13 @@ def main():
                 similarities[i] = cosine (trackVec, centr)
             mindex = reduce(lambda x, y: x if x[1] > y[1] else y, enumerate(similarities))[0]
             clusters[mindex].append(t_id)
+#            bow_av_merge(trackVec, new_centroids[mindex], cluster_counts[mindex])
             cluster_counts[mindex] += 1
             nprocs += 1
             if nprocs % modpct == 0:
                 update_clustering(npass, nprocs, total_docs, t_id, mindex)
 
+#        centroids = new_centroids
         update_text("Recomputing centroids...{}".format(repr(cluster_counts)))
         
         for cluster_id in range(num_means):
@@ -138,6 +150,9 @@ def main():
                 c.execute(query)
                 centroids[cluster_id] = dict(c.fetchall())
                 update_progress(cluster_id,num_means)
+
+#            if centroids[cluster_id] != new_centroids[cluster_id]:
+#                trace()
 
         npass += 1
 
