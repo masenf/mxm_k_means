@@ -18,6 +18,8 @@ MXM_TFIDF = "mxm_tfidf.db"
 
 tfidf = None
 num_means = 6
+total_docs = 0
+modpct = 1
 
 centroids = [ ]
 
@@ -71,29 +73,38 @@ def update_progress(comp, total, length=40):
     sys.stderr.write("\033[1B\r")
 
 def init():
-    global tfidf, centroids
+    global tfidf, centroids, total_docs, modpct
     tfidf = sqlite3.connect(MXM_TFIDF)
 
-    print("Beginning k-means clustering with K={}".format(num_means))
+    dbg("Beginning k-means clustering with K={}".format(num_means))
 
-    # find some random centroids
+    dbg("Initializing values...")
+
     c = tfidf.cursor()
+    c.execute("SELECT COUNT(DISTINCT(track_id)) FROM tfidf")
+    total_docs = c.fetchone()[0]
+    modpct = total_docs / 2000
+    if (modpct < 1): modpct = 1
+
+    update_text("Picking random centroids K={}".format(num_means))
+    # find some random centroids
     for t_id in c.execute("SELECT DISTINCT(track_id) FROM tfidf ORDER BY RANDOM() LIMIT {}".format(num_means)): 
         centroids.append(get_vectory(t_id[0]))
+        update_progress(len(centroids),total_docs) 
 
 def main():
-    total_docs = 0
     npass = 0
     clusters = None
     cluster_counts = [0] * num_means
     old_cluster_counts = None
 
-    print("Initializing values...")
-
     c = tfidf.cursor()
-    c.execute("SELECT COUNT(DISTINCT(track_id)) FROM tfidf")
-    total_docs = c.fetchone()[0]
-    modpct = total_docs / 100
+
+    update_text("Caching tracks, n={}".format(total_docs))
+    c.execute("SELECT DISTINCT(track_id) FROM tfidf")
+    all_tracks = c.fetchall()
+
+    dbg("Set up is complete, starting k-means")
 
     # keep going until we converge
     while tuple(cluster_counts) != old_cluster_counts:
@@ -103,7 +114,7 @@ def main():
         clusters = [[] for x in xrange(0,num_means)]
 
         # for each track, find nearest cluster
-        for row in c.execute("SELECT DISTINCT(track_id) FROM tfidf"):
+        for row in all_tracks:
             t_id = row[0]
             trackVec = get_vectory(t_id)
             similarities = [float('inf')] * num_means
@@ -158,6 +169,6 @@ if __name__ == "__main__":
             dbg("Error, argument 1 must be an integer")
     init()
     clusters, cluster_counts = main()
-    print("Process complete, cluster counts={}".format(cluster_counts))
+    dbg("Process complete, cluster counts={}".format(cluster_counts))
     dump_centroids()
     dump_clusters(clusters)
