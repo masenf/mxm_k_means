@@ -37,6 +37,9 @@ def main(track_id):
     metadata = get_metadata(track_id, mdd)
     if metadata:
         for field, value in metadata:
+            try:
+                value = value.encode('utf-8')
+            except AttributeError: pass
             print("{:{field_len}}   {}".format(field, value, field_len=field_len))
     else:
         sys.stderr.write("track_id <{}> not found in metadata database\n".format(track_id))
@@ -44,8 +47,8 @@ def main(track_id):
     print
     mxmdata = get_mxmdata(track_id, mxm)
     if mxmdata:
-        for entry in mxmdata:
-            print("{:5}   {}".format(*entry))
+        for field, value in mxmdata:
+            print("{:5}   {}".format(field, value.encode('utf-8')))
     else:
         sys.stderr.write("track_id <{}> not found in mxm database\n".format(track_id))
 
