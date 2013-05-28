@@ -104,10 +104,11 @@ def main():
     c.execute("SELECT DISTINCT(track_id) FROM tfidf")
     all_tracks = c.fetchall()
 
-    dbg("Set up is complete, starting k-means")
+    update_text("Set up is complete, starting k-means. modpct = {}".format(modpct))
 
     # keep going until we converge
     while tuple(cluster_counts) != old_cluster_counts:
+        update_progress(0,total_docs)
         nprocs = 0
         old_cluster_counts  = tuple(cluster_counts)
         cluster_counts = [0] * num_means
