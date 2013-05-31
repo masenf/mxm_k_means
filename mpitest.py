@@ -1,8 +1,8 @@
 from mpi4py import MPI
 from time import sleep
-from signal import signal, alarm, SIGALRM
+from threading import Timer
 import sys
-from progress import ProgressUpdater
+from progress import ProgressManager
 from random import random, randint
 
 comm = MPI.COMM_WORLD
@@ -16,48 +16,63 @@ class MsgReceiver(object):
         self.req2 = None
         self.st = MPI.Status()
 
-    def get_handler(self):
-        def handler(signo, st):
-            handle()
-        def handle(rec=0):
-            if self.req1 is None:
-                self.req1 = comm.irecv(dest=MPI.ANY_SOURCE, tag=90)
-            if self.req2 is None:
-                self.req2 = comm.irecv(dest=MPI.ANY_SOURCE, tag=91)
-            res = MPI.Request.testany((self.req1,self.req2), status=self.st)
-            if res[1]:
-                print(res)
-                print("Received: {} from {} with tag {}".format(res[2], self.st.Get_source(), self.st.Get_tag()))
-                if self.st.Get_tag() == 90:
-                    self.req1 = None
+    def start_handler(self):
+        def handle():
+            attempts = 0
+            while attempts < 1:
+                if self.req1 is None:
+                    self.req1 = comm.irecv(dest=MPI.ANY_SOURCE, tag=90)
+                if self.req2 is None:
+                    self.req2 = comm.irecv(dest=MPI.ANY_SOURCE, tag=91)
+                res = MPI.Request.testany((self.req1,self.req2), status=self.st)
+                if res[1]:
+                    print("Received: {} from {} with tag {}".format(res[2], self.st.Get_source(), self.st.Get_tag()))
+                    if self.st.Get_tag() == 90:
+                        self.req1 = None
+                    else:
+                        self.req2 = None
                 else:
-                    self.req2 = None
-            elif rec > 1:
-                alarm(1)
-                return
-            else:
-                sleep(0.06)
-                rec += 1
+                    sleep(0.06)
+                    attempts += 1
 
-            # try to call again recursively
-            handle(rec)
-        return handler
+            Timer(0.3, handle).start()
+        handle()
 
-p = ProgressUpdater(comm, rank, size)
+def testMsgReceiver():
 
-if rank == 0:
-    handler = p._get_handler()
-    signal(SIGALRM,handler)
-    handler(None,None)
-    p.update_text("I'm root bitch!")
-    while 1:
-        sys.stdin.readline()
-else:
-    p.update_text("Hello from #{}".format(rank))
-    prog = randint(10,30)
-    for i in xrange(prog):
-        p.update_progress(i,prog-1)
-        sleep(random() * 2)
+    if rank == 0:
+        m = MsgReceiver()
+        m.start_handler()
+    else:
+        print("Sending messages!")
+        comm.send("Hello from #{}".format(rank), dest=0, tag=90)
+        prog = randint(10,30)
+        for i in xrange(prog):
+            comm.send((i,prog-1), dest=0, tag=91)
+            sleep(random())
+
+
+def testProgressManager():
+    p = ProgressManager(comm, rank, size)
+    p.start_handling()
+
+    if rank == 0:
+        p.update_text("I'm root bitch!")
+        for i in xrange(0,35):
+            p.update_progress(i,34)
+            sleep(random())
+        p.update_text("Done")
+    else:
+        p.update_text("Hello from #{}".format(rank))
+        prog = randint(10,30)
+        for i in xrange(prog):
+            p.update_progress(i,prog-1)
+            sleep(random())
+        p.update_text("Done")
+
+    p.running = False
+if __name__ == '__main__':
+    testProgressManager()
 
 #
 #

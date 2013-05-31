@@ -55,6 +55,8 @@ def init_output_db(dbh):
               (track_id text,
                word text,
                tfidf real)''')
+	c.execute("CREATE INDEX idx_track_id ON tfidf (track_id)")
+	c.execute("CREATE INDEX idx_word ON tfidf (word)")
     dbh.commit()
 
 def main(input_db="mxm_dataset.db", output_db="mxm_tfidf.db"):

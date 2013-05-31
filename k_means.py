@@ -14,7 +14,7 @@ except ImportError:
     trace = disabled
 
 MXM_DB = "mxm_dataset.db"
-MXM_TFIDF = "mxm_tfidf.db"
+MXM_TFIDF = "mxm_tfidf_small.db"
 
 tfidf = None
 num_means = 6
@@ -158,7 +158,7 @@ def main():
 
     return clusters, cluster_counts
 
-def dump_centroids():
+def dump_centroids(centroids, cluster_counts):
     for i, centroid in enumerate(centroids):
         print("Cluster {} ({})\n{}".format(i, cluster_counts[i], "="*31))
         words = centroid.items()
@@ -167,7 +167,7 @@ def dump_centroids():
             print("{:20} {:10f}".format(word.encode('utf-8'), tfidf))
         print
 
-def dump_clusters(clusters):
+def dump_clusters(clusters, cluster_counts):
     for i, cluster in enumerate(clusters):
         print("Cluster {} ({})\n{}".format(i, cluster_counts[i], "="*31))
         for t_id in cluster:
