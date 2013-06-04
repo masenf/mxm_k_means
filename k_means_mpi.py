@@ -78,7 +78,7 @@ def cluster_mean(tracks, callback=None):
         for word in cluster_totals:
             cluster_totals[word] /= ntracks
     return cluster_totals
-def vector_mean(vectors):
+def vector_mean(vectors, limit=1000):
     nvecs = len(vectors)
     cluster_totals = {}
     for vec in vectors:
@@ -89,6 +89,13 @@ def vector_mean(vectors):
     if cluster_totals:
         for word in cluster_totals:
             cluster_totals[word] /= nvecs
+    avtfidfs = cluster_totals.values()
+    avtfidfs.sort(reverse=True)
+    if len(avtfidfs) > limit:
+        cutoff = avtfidfs[limit]
+        for word in cluster_totals.keys():
+            if cluster_totals[word] < cutoff:
+                del cluster_totals[word]
     return cluster_totals
 
 def update_clustering(npass, nproc, ndocs, last_track, last_cluster):
@@ -183,13 +190,11 @@ def main(centroid_file, cluster_file):
                 similarities[i] = cosine (vec, centr)
             mindex = reduce(lambda x, y: x if x[1] > y[1] else y, enumerate(similarities))[0]
             clusters[mindex].append(t_id)
-#            bow_av_merge(trackVec, new_centroids[mindex], cluster_counts[mindex])
             cluster_counts[mindex] += 1
             nprocs += 1
             if nprocs % modpct == 0:
                 update_clustering(npass, nprocs, ntracks, t_id, mindex)
 
-#        centroids = new_centroids
         update_text("Recomputing centroids...")
         
         nprocs = [0]
@@ -201,9 +206,9 @@ def main(centroid_file, cluster_file):
 
         # reconcile clusters
         comm.Barrier()
+        update_text("Reconcile centroids...")
         centroid_groups = [[] for x in xrange(0,num_means)]
         if myrank == 0:
-            update_text("Reconcile centroids...")
             for i, cd in enumerate(centroids):
                 centroid_groups[i].append(cd)
             update_progress(1,size)
@@ -217,7 +222,7 @@ def main(centroid_file, cluster_file):
             for cluster_id in xrange(num_means):
                 centroids[cluster_id] = vector_mean(centroid_groups[cluster_id])
         else:
-            update_text("Sending centroids to root")
+            progressmgr.client_send()
             comm.send(centroids, dest=0, tag=68)
             update_text("Sending cluster_counts to root")
             comm.send(cluster_counts, dest=0, tag=69)
@@ -238,11 +243,13 @@ def main(centroid_file, cluster_file):
             comm.send(clusters, dest=0, tag=70)
         if myrank == 0:
             update_text("Writing current state to file")
-            dump_clusters(clusters, cluster_counts, cluster_file)
-            dump_centroids(cluster_counts, centroid_file)
+            dump_clusters(clusters, cluster_counts, cluster_file, npass)
+            dump_centroids(cluster_counts, centroid_file, npass)
         npass += 1
         comm.Barrier()
 
+    update_text("DONE with {} passes".format(npass))
+    if myrank > 0: progressmgr.client_send()
     comm.Barrier()
     progressmgr.running = False
 
@@ -263,18 +270,20 @@ def init_mpi():
     update_text("{} checking in!".format(str(myrank)))
     update_progress(0,1)
 
-def dump_centroids(cluster_counts, filename):
+def dump_centroids(cluster_counts, filename, npass=0):
     with open(filename, 'w') as f:
+        f.write("Writing output at pass {}\n\n".format(npass))
         for i, centroid in enumerate(centroids):
             f.write("Cluster {} ({})\n{}\n".format(i, cluster_counts[i], "="*31))
             words = centroid.items()
             words.sort(key=lambda x: x[1], reverse=True)
-            for word, tfidf in words[:30]:
+            for word, tfidf in words[:50]:
                 f.write("{:20} {:10f}\n".format(word.encode('utf-8'), tfidf))
             f.write("\n")
 
-def dump_clusters(clusters, cluster_counts, filename):
+def dump_clusters(clusters, cluster_counts, filename, npass=0):
     with open(filename,'w') as f:
+        f.write("Writing output at pass {}\n\n".format(npass))
         for i, cluster in enumerate(clusters):
             f.write("Cluster {} ({})\n{}\n".format(i, cluster_counts[i], "="*31))
             for t_id in cluster:
@@ -296,8 +305,8 @@ if __name__ == "__main__":
 
     init_mpi()
     init()
-    clusters, cluster_counts = main(centroid_file,cluster_file)
-    if myrank == 0:
-        print("Process complete, cluster counts={}".format(cluster_counts))
-        dump_centroids(cluster_counts, centroid_file)
-        dump_clusters(clusters, cluster_counts, cluster_file)
+    main(centroid_file,cluster_file)
+#    if myrank == 0:
+#        print("Process complete, cluster counts={}".format(cluster_counts))
+#        dump_centroids(cluster_counts, centroid_file)
+#        dump_clusters(clusters, cluster_counts, cluster_file)

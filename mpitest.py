@@ -69,6 +69,7 @@ def testProgressManager():
             p.update_progress(i,prog-1)
             sleep(random())
         p.update_text("Done")
+        p.client_send()
 
     p.running = False
 if __name__ == '__main__':

@@ -5,6 +5,7 @@
 import sys
 import sqlite3
 from math import sqrt
+import numpy as np
 
 trace = None
 try:
@@ -32,11 +33,16 @@ def bow_av_merge (src, dest, cursz):
 
 def bow_dotproduct (t1, t2):
     common_keys = set(t1.keys()).intersection(t2)
-    return reduce(lambda dp, key: dp + t1[key]*t2[key], common_keys, 0)
+    #return reduce(lambda dp, key: dp + t1[key]*t2[key], common_keys, 0)
+    v1 = np.array([t1[k] for k in common_keys])
+    v2 = np.array([t2[k] for k in common_keys])
+    return np.sum(v1*v2)
 
 def bow_magnitude (t):
     """ compute the euiclidian length of the vector """
-    return sqrt(reduce(lambda acc,v: acc + v ** 2, t.values(),0))
+    v = np.array(t.values())
+    return np.sqrt(np.sum(np.square(v)))
+    #return sqrt(reduce(lambda acc,v: acc + v ** 2, t.values(),0))
 
 def cosine (t1, t2):
 

@@ -1,6 +1,6 @@
 import os
-from time import sleep
-from threading import Timer
+from time import sleep, time
+from threading import Timer, Lock
 from mpi4py import MPI
 from math import ceil
 import sys
@@ -25,7 +25,9 @@ class ProgressManager(object):
         self.size = size
         self.running = False
         self.last_message = ''
+        self.last_send_message = 0
         self.last_progress = (0,1)
+        self.last_send_progress = 0
         self.request_m = None
         self.request_p = None
 
@@ -33,6 +35,7 @@ class ProgressManager(object):
         self.maxwidth = maxwidth
         self.messages = ['' for x in xrange(size)]
         self.progress = [[0,1] for x in xrange(size)]
+        self.dirtylock = Lock()
         self.dirty = set()
         if myrank == 0:
             #self.rows, self.columns = os.popen('stty size', 'r').read().split()
@@ -44,38 +47,33 @@ class ProgressManager(object):
     def start_handling(self):
         if self.myrank == 0:
             self.start_handling_root()
-        else:
-            self.start_handling_client()
-
-    def start_handling_client(self):
-        self.running = True
-        def handle():
-            if self.request_m is None and self.last_message is not None:
-                self.request_m = self.comm.isend(self.last_message, dest=0, tag=98)
-                self.last_message = None
-            if self.request_p is None and self.last_progress is not None:
-                self.request_p = self.comm.isend(self.last_progress, dest=0, tag=99)
-                self.last_progress = None
-
-            if self.request_m is not None:
-                res = self.request_m.test()
-                if res[0]:
-                    self.request_m = None
-            if self.request_p is not None:
-                res = self.request_p.test()
-                if res[0]:
-                    self.request_p = None
-            if self.running:
-                Timer(UPDATE_TIMEOUT, handle).start()
-        handle()
-
+    def client_send_message(self):
+        if self.request_m is None and self.last_message is not None:
+            self.request_m = self.comm.isend(self.last_message, dest=0, tag=98)
+            self.last_message = None
+        if self.request_m is not None:
+            res = self.request_m.test()
+            if res[0]:
+                self.request_m = None
+        self.last_send_message = time()
+    def client_send_progress(self):
+        if self.request_p is None and self.last_progress is not None:
+            self.request_p = self.comm.isend(self.last_progress, dest=0, tag=99)
+            self.last_progress = None
+        if self.request_p is not None:
+            res = self.request_p.test()
+            if res[0]:
+                self.request_p = None
+        self.last_send_progress = time()
+    def client_send(self):
+        self.client_send_message()
+        self.client_send_progress()
             
     def start_handling_root(self):
         self.running = True
         self._redraw(clear=True)
         def handler():
             handle()
-            self._redraw()
         def handle():
             attempt = 0
             while attempt < 3:
@@ -90,15 +88,18 @@ class ProgressManager(object):
                 if res[1]:
                     if res[0] == 0:
                         self.messages[status.Get_source()] = res[2]
-                        self.dirty.add(status.Get_source())
                         self.request_m = None
+                        with self.dirtylock:
+                            self.dirty.add(status.Get_source())
                     elif res[0] == 1:
                         self.progress[status.Get_source()] = res[2]
-                        self.dirty.add(status.Get_source())
                         self.request_p = None
+                        with self.dirtylock:
+                            self.dirty.add(status.Get_source())
                 else:
                     sleep(SEC_CHANCE)
                     attempt += 1
+            self._redraw()
             if self.running:
                 Timer(UPDATE_TIMEOUT, handler).start()
         handler()
@@ -141,7 +142,8 @@ class ProgressManager(object):
                     _blit_status(i,j)
         else:
             dirty = self.dirty.copy()
-            self.dirty = set()
+            with self.dirtylock:
+                self.dirty = set()
             for rank in dirty:
                 i = rank / pcols
                 j = rank - i*pcols
@@ -156,28 +158,24 @@ class ProgressManager(object):
                                                     length=length)
         return output
 
-    def _test_requests(self):
-        res = MPI.Request.testany(self.requests)
-        while len(self.requests) > 0 and res[1]:
-            del self.requests[res[0]]
-            res = MPI.Request.testany(self.requests)
-
     def update_text(self, message):
         """ format a message for printing and send it to the master node """
         # move up two lines and spit out the pass number, and percentage done
         if self.myrank > 0:
             self.last_message = message
-#            self._test_requests()
-#            self.requests.append(self.comm.isend(message, dest=0, tag=98))
+            if time() - self.last_send_message > UPDATE_TIMEOUT:
+                self.client_send()
         else:
             self.messages[0] = message
-            self.dirty.add(0)
+            with self.dirtylock:
+                self.dirty.add(0)
 
     def update_progress(self, comp, total):
         if self.myrank > 0:
             self.last_progress = (comp,total)
-#            self._test_requests()
-#            self.requests.append(self.comm.isend((comp, total), dest=0, tag=99))
+            if time() - self.last_send_progress > UPDATE_TIMEOUT:
+                self.client_send()
         else:
             self.progress[0] = (comp, total)
-            self.dirty.add(0)
+            with self.dirtylock:
+                self.dirty.add(0)
