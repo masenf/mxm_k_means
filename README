@@ -1,0 +1,37 @@
+CSCI497b Data Mining Final Project
+by Masen Furer
+==================================
+
+comments&questions: m_github@0x26.net
+I'll try to answer anything to the best of my knowledge.
+
+Finding word-genres.
+Presentation: http://prezi.com/lj95oj0tabk5/finding-word-genres/
+
+Required software (I built all of these from source in my research):
+  * Python 2.7 compiled with sqlite
+  * numpy
+  * OpenMPI
+  * mpi4py
+
+Required data files:
+  * http://labrosa.ee.columbia.edu/millionsong/sites/default/files/AdditionalFiles/mxm_dataset.db
+  * http://labrosa.ee.columbia.edu/millionsong/sites/default/files/AdditionalFiles/track_metadata.db
+
+Included scripts:
+  * get_tfidf.py - use this to preprocess the data. mxm_dataset.db --> mxm_tfidf.db
+  * k_means_mpi.py - main clustering algorithm with mpi
+  * k_means.py - sequential clustering algorithm
+  * track_lookup.py - tool to look up metadata from track_metadata.db
+  * progress.py - progress reporting for mpi4py
+
+Process:
+  * first run the raw data through get_tfidf.py
+  * run mpiexec -np 16 k_means_mpi.py k output_filename
+
+Notes:
+  * database names are coded in the scripts
+  * k_means.py was the original script which was morphed and modified into
+    k_means_mpi.py. Therefore, a few optimizations were applied to k_means_mpi.py
+    which did not find their way back into k_means.py
+  * Use at your own risk
