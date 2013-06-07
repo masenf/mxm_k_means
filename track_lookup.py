@@ -29,10 +29,9 @@ def get_mxmdata(track_id, mxm):
     return c.fetchall()
 
 
-def main(track_id):
+def main(track_id, show_words):
 
     mdd = sqlite3.connect(METADATA_DB)
-    mxm = sqlite3.connect(MXM_DB)
 
     metadata = get_metadata(track_id, mdd)
     if metadata:
@@ -43,21 +42,29 @@ def main(track_id):
             print("{:{field_len}}   {}".format(field, value, field_len=field_len))
     else:
         sys.stderr.write("track_id <{}> not found in metadata database\n".format(track_id))
-
-    print
-    mxmdata = get_mxmdata(track_id, mxm)
-    if mxmdata:
-        for field, value in mxmdata:
-            print("{:5}   {}".format(field, value.encode('utf-8')))
-    else:
-        sys.stderr.write("track_id <{}> not found in mxm database\n".format(track_id))
-
-    mxm.close()
     mdd.close()
 
+    if show_words:
+        print
+        mxm = sqlite3.connect(MXM_DB)
+        mxmdata = get_mxmdata(track_id, mxm)
+        if mxmdata:
+            for field, value in mxmdata:
+                print("{:5}   {}".format(field, value.encode('utf-8')))
+        else:
+            sys.stderr.write("track_id <{}> not found in mxm database\n".format(track_id))
+        mxm.close()
+
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        main(sys.argv[1])
+    trackid = None
+    show_words = False
+    for arg in sys.argv[1:]:
+        if arg == '-w':
+            show_words = True
+        else:
+            trackid = arg
+    if trackid:
+        main(trackid, show_words)
     else:
         sys.stderr.write("USAGE: {} track_id\n".format(sys.argv[0]))
         sys.exit(64)
