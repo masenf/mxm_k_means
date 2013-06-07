@@ -1,0 +1,90 @@
+
+\documentclass[11pt]{article}
+
+%begins paragraphs with an empty line instead of a tab.
+\usepackage[parfill]{parskip}
+
+%creates smaller margins
+\pagestyle{empty} \setlength{\parindent}{0mm}
+\addtolength{\topmargin}{-0.5in} \setlength{\textheight}{9in}
+\addtolength{\textwidth}{1.75in} \addtolength{\oddsidemargin}{-0.9in}
+
+%math commands and symbols
+\usepackage{amsmath, amssymb}
+\usepackage{bm}
+
+% Theorem and proof environments
+\usepackage{amsthm}
+
+%allows for comment blocks and verbatim sections
+\usepackage{verbatim}
+\usepackage{graphicx}
+
+\usepackage{enumerate}
+\usepackage{amsfonts}
+\usepackage{subfig}
+\usepackage{cancel}
+
+\begin{document}
+
+\begin{center}
+\textbf{CSCI 497b Project Checkpoint 1} \\
+Masen Furer\\
+May 04, 2013\\
+\end{center}
+
+\textbf{Dataset}. I'll be using the publically available \textbf{musiX}\emph{match} 
+database containing bag-of-word representations of lyrics for $237,662$ well-known
+songs. The data has been fetched and processed specifically for research usage and
+is available at the following URL:
+
+\verb|http://labrosa.ee.columbia.edu/millionsong/musixmatch|
+
+Along with the raw lyrics data, I'll be using the last.fm tag data which correlates
+tracks with genre information and musical similarity. This data will mainly be
+used for testing, labeling, and verification purposes. 
+
+\verb|http://labrosa.ee.columbia.edu/millionsong/lastfm|
+
+Additionally, I'll be using the track metadata for presentation purposes as
+well as artist and album data. Note: link below is to a sqlite database.
+
+\begin{verbatim}http://labrosa.ee.columbia.edu/millionsong/sites/
+default/files/AdditionalFiles/track_metadata.db\end{verbatim}
+
+\textbf{Methods}. I'm implementing an \emph{unsupervised classifier} to determine
+the natural word-genres present in a wide array of music. A Word-genre encompasses
+songs which are lyrically similar -- songs about the same topics, using similar
+or associative words. In the analysis, I'll be looking only at the lyric content
+of a song, as a bag-of-words. The word order or phrasing is not preserved, so 
+I'll be relying on frequency analysis.
+
+Ultimately, I'll be using K-means partitioning with a cosine distance
+function to cluster the data points. The frequency counts will be normalized
+using tf-idf to provide a representative weight for each word. 
+Multiple trials will be conducted to determine the optimal number 
+of partitions (word-geners) that accurately describe the data. 
+
+To dig further, I will do some association rule mining to determine words that
+frequently occur together. These frequent item sets can be used to modify
+the distance measure of K-means to pull in topically similar songs which
+may not match exactly lyrically. The counts of occurences for all words in
+a topical frequent item sets could be summed to normalize the data even
+further.
+
+\textbf{Tooling.} I'll be implementing the code in Python [1] using sqlite [2] databases. 
+Otherwise, the data comes preprocessed and ready to use, I won't need any special
+scraping or normalization tools. The classification algorithm will be written 
+using open source library calls for distance measures and statistics, but otherwise
+implemented from the descriptions in the text. The data will be presented using
+open source tools like GraphViz [3] and gnuplot [4].
+
+[1] Python: \verb|http://python.org|
+
+[2] SQLite: \verb|http://sqlite.org|
+
+[3] Graphviz: \verb|http://graphviz.org|
+
+[4] gnuplot: \verb|http://gnuplot.info|
+
+\end{document}

@@ -1,0 +1,231 @@
+
+\documentclass[11pt]{article}
+
+%begins paragraphs with an empty line instead of a tab.
+\usepackage[parfill]{parskip}
+
+%creates smaller margins
+\pagestyle{empty} \setlength{\parindent}{0mm}
+\addtolength{\topmargin}{-0.5in} \setlength{\textheight}{9in}
+\addtolength{\textwidth}{1.75in} \addtolength{\oddsidemargin}{-0.9in}
+
+%math commands and symbols
+\usepackage{amsmath, amssymb}
+\usepackage{bm}
+
+% Theorem and proof environments
+\usepackage{amsthm}
+
+%allows for comment blocks and verbatim sections
+\usepackage{verbatim}
+\usepackage{graphicx}
+
+\usepackage{enumerate}
+\usepackage{amsfonts}
+\usepackage{subfig}
+\usepackage{cancel}
+
+\begin{document}
+
+\begin{center}
+\textbf{CSCI 497b Final Project Checkpoint} \\
+Masen Furer\\
+June 04, 2013\\
+\end{center}
+
+\textbf{Dataset}. I've used the publically available \textbf{musiX}\emph{match} 
+database containing bag-of-word representations of lyrics for $237,662$ well-known
+songs. The data has been fetched and processed specifically for research usage and
+is available at the following URL:
+
+\verb|http://labrosa.ee.columbia.edu/millionsong/musixmatch|
+
+Additionally, I've used the track metadata for presentation purposes as
+well as artist and album data. Note: link below is to a sqlite database.
+
+\begin{verbatim}http://labrosa.ee.columbia.edu/millionsong/sites/
+default/files/AdditionalFiles/track_metadata.db\end{verbatim}
+
+\textbf{Purpose}. The goal of the experiment is to take raw lyric data
+and emerge with a set of clusters which group songs based on the
+importance of the terms they contain. The final result of an output run
+consists of two text files:
+
+\begin{enumerate}
+    \item \verb|kmeans_output_centroids| lists for each mean, the number of data points
+    in the cluster and the top 50 most important words of the centroid.
+    \item \verb|kmeans_output_clusters| lists the mxm track ids in each cluster. These
+    may be looked up in \verb|track_metadata.db|.
+\end{enumerate}
+
+\textbf{Methods}. I've implemented an \emph{unsupervised classifier} to determine
+the natural word-genres present in a wide array of music. A Word-genre encompasses
+songs which are lyrically similar -- songs about the same topics, using similar
+or associative words. In the analysis, I'll be looking only at the lyric content
+of a song, as a bag-of-words. The word order or phrasing is not preserved, so 
+I'll be relying on frequency analysis.
+
+The data was preprocessed by calculating a \emph{Term Frequency-Inverse Document Frequency}
+(tf-idf) score for each word in the database. Normalizing the raw word counts using
+tf-idf assigns each word a value indicating its importance in that particular song.
+I've calculated the tf-idf by the following method:
+
+\[
+    \text{tf-idf}(word) = \frac{\text{Count}(word,track)}{\text{Count}(track)} \cdot
+                   \log{\left(\frac{\vert S \vert}{\vert\{s : s \in S \wedge word \in s\}\vert}\right)}
+\]
+
+Essentially, this takes the raw frequency (number of times a given word appears
+in a song over the total number of words in the song) multiplied by the inverse
+document frequency (the log of the number of songs over the number of songs
+which contain the given word at least once). This results in a measure of the
+importance of a word in a track scaled by how common that word is among the
+data set. Common words often get low tf-idf scores because they appear in
+nearly every song.  A word which is shared by only a few songs will have a
+higher tf-idf because the word is rare amongst the dataset which implies that
+it has importance when it is actually used. The term frequency term
+has a range between 0 (the song does not contain the word) to 1 (every word in the
+song is \emph{the} word). The inverse document frequence has a range between
+0 (every song includes the word) to $\infty$ (very rare). 
+
+To perform the clustering, I'm using K-means with a cosine distance
+function to cluster the data points based on the tf-idf calculated previously.
+Initially, $k$ random centroids are chosen from the initial dataset, and
+all relevant data from the db is fetched into memory before starting any
+calculation.
+
+When performing the calculations, the data is cached from the database
+in a nested python \verb|dict| of \verb|track_id -> word -> tfidf|. This is
+a compact vector representation where zero dimensions are simply omitted. 
+
+Each pass advances through the data one track at a time by computing the cosine similarity
+between the current track and each of the centroids. The track is then 
+assigned to the cluster containing the closest centroid.
+To calculate the cosine similarity, I compute the dot product of the
+test centroid and current track by summing the product of corresponding tf-idf
+scores divided by the product of the euclidean magnitudes of each vector.
+
+\[
+    \text{Cosine}(t_1, t_2) = \frac{\sum\limits_{w \, \in \, t_1 \, \wedge \, t_2} t_1[w] \cdot t_2[w]}
+                                   {\vert t_1 \vert \cdot \vert t_2 \vert}
+\]
+
+The cosine similarity score ranges from 0.0 (totally disimilar) to 1.0 (the same point)
+and is a good measure when combined with tf-idf for determining document similarity.
+
+When all tracks have been tested against all centroids, the current pass is
+complete.  At this point, the cluster centroids are recalculated by taking the
+straight up mean of all points in the cluster. The above process repeats, this
+time using the newly computed centroids. The algorithm generally takes between
+10 and 30 passes before it converges, judged by no tracks changing clusters
+during an entire pass.
+
+\textbf{Problems.}
+
+\begin{enumerate}
+    \item Foreign languages present an interesting problem in the cluster analysis. 
+    Because most songs in the database are using English words, even common foreign 
+    words are rare amongst the dataset. This leads to inflated tf-idf scores for
+    non-English words. Although this doesn't skew the English clusters too much, 
+    there are few useful clusters produced for any foreign language songs. 
+
+    It usually happens that a single cluster captures all songs written in a non-English
+    language. For instance, German, Spanish, and French language songs each get put
+    in their own cluster regardless of the actual topic of the song because the 
+    topical words are just as rare (among the whole data set) as the common articles 
+    and conjunctions. The proper solution to this would be separate the tracks based
+    on language and then run the clustering algorithm on each partition of the 
+    data. In this trial, this preprocessing step was prohibitive and thus not 
+    performed. With more metadata on the language of the song, this task would
+    have been easier.
+
+    \item Performance of the initial implementation was quite abysmal and required
+    some optimizations to get an algorithm which would complete on the entire data
+    set in the 20 - 90 minutes range. I tweaked a few parts of the inner loop to
+    use numpy arrays where possible for doing vector operations. Caching was also
+    a great performance benefit as no disk access to the database was necessary
+    after initialization. Another large benefit was limiting the centroid size to
+    the top 1000 words, which previously grew unbounded as the size of the cluster increased
+    causing the algorithm to become slower and slower.
+
+    Finally, the most effective speedup was gained by splitting the work out on the
+    parallel cluster. Since this algorithm is embarrasingly parallel, it wasn't 
+    too difficult to adapt my algorithm to run across many machines. I'm not using
+    any fancy parallel algorithms to get the work done, just chopping up the dataset
+    and shipping a chunk out to each node. Before each pass, the head node broadcasts
+    the current centroid set. After each pass, the head node collects each node's 
+    new centroids and averages them to find the new centroids for every node. Although
+    I encountered numerous bugs and missing documentation while using mpi4py, the
+    resulting time that I saved allowed me to complete the number of trials that
+    I needed.
+
+    \item Starting conditions and optimal clusters were difficult to quantitatively 
+    judge. When you're clustering less than 1000 data points, one can trivially 
+    inspect the resulting clusters over various trials and remove outlier trials,
+    resulting in a nice average clustering. However, with over 200,000 data points,
+    no two clustering runs ended the same way, and there's too much data to 
+    manually compare the clusters. Also, because I'm not familiar with every song
+    in the database, it's difficult when given a list a songs to determine a 
+    measure of cluster quality.
+
+    This is still a section of research that I'm exploring. For this report,
+    I'm basically looking at the top 50 words which define the centroid of 
+    each cluster and attempting to reason about the quality of the cluster
+    based on that. When a cluster contains disperate ideas that only a human
+    would associate together and I see the contents and it just makes sense, I 
+    have an idea that my algorithm is working. That said, I would love to 
+    develop a measure for determining not if a cluster is good, but \emph{how} good it is.
+\end{enumerate}
+
+\textbf{Tooling}. I've implemented the code in Python [1] using sqlite [2] databases. 
+Otherwise, the data comes preprocessed and ready to use, I won't need any special
+scraping or normalization tools. Numpy [3] was used in some places to speed up
+long vector calculations. Otherwise, the vector dot product and magnitude, cosine
+similarity, and k-means algorithms were written by myself specifically for this
+problem domain. Other implementations do exist, but all would require extensive
+modification to work with my data, so fresh implementation was the best strategy.
+
+I've used the library mpi4py [4] with openmpi [5] to bring my algorithm to the
+HPC cluster.
+
+\textbf{Results}. The clustering algorithm was run with various k-values between
+$30$ and $100$. As expected, increasing $k$ also increases the specificity of
+the resulting clusters. In my experience, reasonable clusters were produced during
+each run, however some runs provided more utility than others. 
+
+With the low means, between $30$ and $40$, the clusters are very general, and
+the top tf-idf values in each cluster are lower overall. In these runs, the
+differentiator words which are relatively rare and useful for topical analysis
+get diluted because the cluster size is too large.  For instance, there may be
+300 tracks mentioning 'cheese' and 'bread', but if these tracks gets lumped in
+a cluster of 12,000, then those differentiating characteristics get averaged
+away and the cluster gains generality as the expense of these features.
+
+At the high end, between $85$ and $100$, the clusters are more specific and in
+some cases there are clusters which could be merged. The advantage of having
+more clusters to start from means that fewer features are lost in the clustering
+process. A simple merging algorithm could be applied afterward on a large number of
+clusters to combine clusters that meet a threshold cosine similarity score.
+
+I further plan to run the algorithm on $200 - 500$ clusters and apply such a merging
+algorithm to collect the true organic clusters.
+
+\textbf{Included files.}
+\begin{enumerate}
+    \item \verb|get_tfidf.py| - code to create the tf-idf database from the source data
+    \item \verb|k_means_mpi.py| - parallel code for the main algorithm
+    \item \verb|progress.py| - progress reporting library for MPI
+    \item \verb|track_lookup.py| - return artist/title information from a mxm track\_id
+\end{enumerate}
+
+[1] Python: \verb|http://python.org|
+
+[2] SQLite: \verb|http://sqlite.org|
+
+[3] Numpy: \verb|http://numpy.org|
+
+[4] mpi4py: \verb|http://mpi4py.scipy.org/|
+
+[5] openmpi: \verb|http://open-mpi.org|
+
+\end{document}
