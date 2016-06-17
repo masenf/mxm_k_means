@@ -84,7 +84,7 @@ def main(input_db="mxm_dataset.db", output_db="mxm_tfidf.db"):
             d.execute(query, (track_id, word, tfidf))
         compl += 1
         if (compl % tenpcnt == 0):
-            print ("{:.2f}% complete".format(compl / tdc.totaldocs * 100))
+            print ("{:.2%} complete".format(compl / tdc.totaldocs))
     out.commit()
     print ("Processed {} tracks".format(compl))
 
